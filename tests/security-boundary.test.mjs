@@ -61,3 +61,9 @@ test("provider errors are not reflected to API clients", () => {
   assert.doesNotMatch(server, /res\.write\([^\n]*errorMsg/);
   assert.doesNotMatch(server, /error: `[^\n]*\$\{errorMsg\}/);
 });
+
+test("Vercel project configuration explicitly selects the Express framework", () => {
+  const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.equal(config.framework, "express");
+  assert.ok(Array.isArray(config.headers));
+});
