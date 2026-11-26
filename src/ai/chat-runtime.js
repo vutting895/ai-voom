@@ -16,6 +16,7 @@ export function createGeminiChatRuntime({ googleProvider, streamTextImpl }) {
       system,
       messages,
       tools,
+      abortSignal,
     }) {
       if (!Array.isArray(messages) || messages.length === 0) {
         throw new TypeError("messages must be a non-empty array");
@@ -36,6 +37,7 @@ export function createGeminiChatRuntime({ googleProvider, streamTextImpl }) {
         system,
         messages,
         tools,
+        ...(abortSignal ? { abortSignal } : {}),
       });
     },
   };
