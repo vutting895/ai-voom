@@ -547,6 +547,8 @@ app.post('/api/chat', async (req, res) => {
     });
 
     for await (const chunk of result.fullStream) {
+      // Stop writing immediately after the client disconnects, even if a provider emits a final buffered chunk.
+      if (signal.aborted || res.destroyed) break;
       if (chunk.type === 'text-delta') {
         if (chunk.textDelta !== undefined && chunk.textDelta !== null) {
           res.write(String(chunk.textDelta));
@@ -580,6 +582,8 @@ app.post('/api/chat', async (req, res) => {
     disposeResponseAbort();
   } catch (error) {
     disposeResponseAbort();
+    // Client disconnects are expected cancellation, not provider failures to log or report.
+    if (signal?.aborted || res.destroyed) return;
     // Never return provider error details, request metadata, or credentials to the browser.
     console.error('AI provider request failed:', {
       name: error?.name || 'Error',
