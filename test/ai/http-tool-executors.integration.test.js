@@ -48,3 +48,37 @@ test("non-abort HTTP errors preserve the tool error contract", async () => {
     success: false
   });
 });
+
+test("Wikipedia executor returns parsed results on a successful response", async () => {
+  let calledUrl = "";
+  const fetchImpl = async (url, options) => {
+    calledUrl = url;
+    assert.equal(options.signal, undefined);
+    return {
+      ok: true,
+      json: async () => ({
+        title: "NOVA",
+        extract: "Summary",
+        content_urls: { desktop: { page: "https://example.test/nova" } }
+      })
+    };
+  };
+  assert.deepEqual(await fetchWikipediaSummary("NOVA", { fetchImpl }), {
+    title: "NOVA",
+    summary: "Summary",
+    url: "https://example.test/nova",
+    success: true
+  });
+  assert.match(calledUrl, /wikipedia.org/);
+});
+
+test("external API executor returns parsed results on a successful response", async () => {
+  const fetchImpl = async (_url, options) => {
+    assert.equal(options.signal, undefined);
+    return { ok: true, json: async () => ({ price: 123 }) };
+  };
+  const result = await fetchExternalApi("crypto", { fetchImpl });
+  assert.equal(result.success, true);
+  assert.equal(result.source, "crypto");
+  assert.deepEqual(result.data, { price: 123 });
+});
