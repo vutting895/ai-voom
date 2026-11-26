@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter, once } from "node:events";
+import { EventEmitter } from "node:events";
 import { createGeminiChatRuntime } from "../../src/ai/chat-runtime.js";
 import { attachResponseAbortSignal } from "../../src/ai/response-abort.js";
 
