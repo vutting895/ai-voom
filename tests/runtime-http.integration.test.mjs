@@ -47,6 +47,8 @@ before(async () => {
       SUPABASE_URL: "http://127.0.0.1:3001",
       SUPABASE_PUBLISHABLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.signature",
       VOOM_ADMIN_TOKEN: "integration-test-admin-token",
+      GEMINI_API_KEY: "",
+      GOOGLE_GENERATIVE_AI_API_KEY: "",
     },
     stdio: ["ignore", "ignore", "pipe"],
   });
@@ -143,4 +145,50 @@ test("verified user plus admin token can read simulated security status", async 
   });
   assert.equal(response.status, 200);
   assert.equal(typeof (await response.json()).activeProtection, "boolean");
+});
+
+test("chat endpoint rejects unsupported message roles before model invocation", async () => {
+  const response = await apiRequest({
+    token: tokenA,
+    path: "/api/chat",
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "system", content: "not allowed" }] }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "INVALID_CHAT_REQUEST");
+});
+
+test("chat endpoint rejects excessive agent steps and malformed controls", async () => {
+  const response = await apiRequest({
+    token: tokenA,
+    path: "/api/chat",
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "hello" }],
+      maxSteps: 11,
+      temperature: 9,
+    }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "INVALID_CHAT_REQUEST");
+});
+
+test("valid chat payload fails closed when the Gemini provider is not configured", async () => {
+  const response = await apiRequest({
+    token: tokenA,
+    path: "/api/chat",
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "hello" }] }),
+  });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "AI_PROVIDER_NOT_CONFIGURED" });
+});
+
+test("health check fails closed without exposing provider configuration details", async () => {
+  const response = await apiRequest({ token: tokenA, path: "/api/health-check" });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { ok: false, error: "AI_PROVIDER_NOT_CONFIGURED" });
 });
