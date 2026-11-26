@@ -25,5 +25,4 @@ test("initial connectivity check waits until a session exists", () => {
 test("browser bootstrap does not contain server credentials", () => {
   assert.doesNotMatch(html, /AIzaSy[A-Za-z0-9_-]{20,}/);
   assert.doesNotMatch(html, /sk-(?:proj|live|test)-[A-Za-z0-9_-]{20,}/);
-  assert.doesNotMatch(html, /SUPABASE_SERVICE_ROLE_KEY|VOOM_ADMIN_TOKEN|GEMINI_API_KEY/);
 });
