@@ -1740,7 +1740,7 @@ function submit(){
   
   // Retrieve RAG Context
   var ctxList = recall(t, 8);
-  var contextText = ctxList.map(function(m){ return m.t; }).join('\n');
+  var contextText = ctxList.map(function(m){ return m.t; }).join('\n').slice(0, 6000);
   
   // Convert conversation history
   var chatHistory = c.msgs.filter(function(m){ return m !== assistantMsg; }).slice(-16).map(function(m){
