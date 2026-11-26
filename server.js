@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { createGeminiChatRuntime } from './src/ai/chat-runtime.js';
 import { attachResponseAbortSignal } from './src/ai/response-abort.js';
+import { bindToolAbortSignal } from './src/ai/tool-abort.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -440,6 +441,9 @@ app.post('/api/chat', async (req, res) => {
 
     const memoriesToSave = [];
 
+    const { signal, dispose } = attachResponseAbortSignal(res);
+    disposeResponseAbort = dispose;
+
     // Dynamically select persona base system prompt
     let systemPromptBase = '';
     if (persona === 'academic') {
@@ -493,10 +497,10 @@ app.post('/api/chat', async (req, res) => {
         parameters: z.object({
           query: z.string().describe('คำที่ต้องการสืบค้นใน Wikipedia เช่น กรุงเทพมหานคร, AI')
         }),
-        execute: async ({ query }) => {
+        execute: async ({ query }, options = {}) => {
           try {
             const url = `https://th.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: options?.abortSignal });
             if (res.ok) {
               const data = await res.json();
               return {
@@ -507,7 +511,7 @@ app.post('/api/chat', async (req, res) => {
               };
             }
             const urlEn = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-            const resEn = await fetch(urlEn);
+            const resEn = await fetch(urlEn, { signal: options?.abortSignal });
             if (resEn.ok) {
               const dataEn = await resEn.json();
               return {
@@ -528,7 +532,7 @@ app.post('/api/chat', async (req, res) => {
         parameters: z.object({
           source: z.enum(['crypto', 'joke', 'weather']).describe('แหล่งข้อมูลที่อนุญาต: crypto, joke หรือ weather')
         }),
-        execute: async ({ source }) => {
+        execute: async ({ source }, options = {}) => {
           try {
             let url = '';
             if (source === 'crypto') {
@@ -541,7 +545,7 @@ app.post('/api/chat', async (req, res) => {
               return { error: 'ไม่พบแหล่งข้อมูลที่ระบุ', success: false };
             }
 
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: options?.abortSignal });
             if (res.ok) {
               const data = await res.json();
               return { source, url, data, success: true };
@@ -573,8 +577,9 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const { signal, dispose } = attachResponseAbortSignal(res);
-    disposeResponseAbort = dispose;
+    for (const toolDefinition of Object.values(activeTools)) {
+      bindToolAbortSignal(toolDefinition, signal);
+    }
 
     const chatRuntime = createGeminiChatRuntime({
       googleProvider,
