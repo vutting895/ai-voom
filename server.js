@@ -523,6 +523,7 @@ app.post('/api/chat', async (req, res) => {
             }
             return { error: 'ไม่พบข้อมูลที่ค้นหาใน Wikipedia', success: false };
           } catch (error) {
+            if (options?.abortSignal?.aborted) throw options.abortSignal.reason ?? error;
             return { error: error.message, success: false };
           }
         }
@@ -554,6 +555,7 @@ app.post('/api/chat', async (req, res) => {
               return { source, url, data: text.slice(0, 500), success: true, warning: 'API return non-JSON or status ' + res.status };
             }
           } catch (error) {
+            if (options?.abortSignal?.aborted) throw options.abortSignal.reason ?? error;
             return { error: error.message, success: false };
           }
         }
