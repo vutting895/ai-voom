@@ -583,7 +583,7 @@ app.post('/api/chat', async (req, res) => {
   } catch (error) {
     disposeResponseAbort();
     // Client disconnects are expected cancellation, not provider failures to log or report.
-    if (signal?.aborted || res.destroyed) return;
+    if (res.destroyed) return;
     // Never return provider error details, request metadata, or credentials to the browser.
     console.error('AI provider request failed:', {
       name: error?.name || 'Error',
