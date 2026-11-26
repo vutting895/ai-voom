@@ -6,6 +6,7 @@ import { streamText, tool, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
+import { createGeminiChatRuntime } from './src/ai/chat-runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -570,15 +571,17 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const result = streamText({
-      model: googleProvider('gemini-3.6-flash', {
-        useSearchGrounding: !!searchEnabled,
-      }),
-      temperature: typeof temperature === 'number' ? temperature : 0.7,
-      maxSteps: typeof maxSteps === 'number' ? maxSteps : 5,
+    const chatRuntime = createGeminiChatRuntime({
+      googleProvider,
+      streamTextImpl: streamText,
+    });
+    const result = chatRuntime.stream({
+      searchEnabled,
+      temperature,
+      maxSteps,
       system: systemPrompt,
-      messages: messages,
-      tools: activeTools
+      messages,
+      tools: activeTools,
     });
 
     for await (const chunk of result.fullStream) {
