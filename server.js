@@ -414,6 +414,7 @@ app.get('/api/auth/me', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   let disposeResponseAbort = () => {};
+  let responseAbortSignal;
   const parsedRequest = chatRequestSchema.safeParse(req.body);
   if (!parsedRequest.success) {
     return res.status(400).json({
@@ -443,6 +444,7 @@ app.post('/api/chat', async (req, res) => {
     const memoriesToSave = [];
 
     const { signal, dispose } = attachResponseAbortSignal(res);
+    responseAbortSignal = signal;
     disposeResponseAbort = dispose;
 
     // Dynamically select persona base system prompt
@@ -583,7 +585,7 @@ app.post('/api/chat', async (req, res) => {
   } catch (error) {
     disposeResponseAbort();
     // Client disconnects are expected cancellation, not provider failures to log or report.
-    if (res.destroyed) return;
+    if (responseAbortSignal?.aborted || res.destroyed) return;
     // Never return provider error details, request metadata, or credentials to the browser.
     console.error('AI provider request failed:', {
       name: error?.name || 'Error',
