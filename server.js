@@ -436,7 +436,8 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const googleProvider = createGoogleGenerativeAI({ apiKey });
+    const createProvider = app.locals.aiDependencies?.createGoogleGenerativeAI || createGoogleGenerativeAI;
+    const googleProvider = createProvider({ apiKey });
 
     // Set streaming response headers
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -537,7 +538,7 @@ app.post('/api/chat', async (req, res) => {
 
     const chatRuntime = createGeminiChatRuntime({
       googleProvider,
-      streamTextImpl: streamText,
+      streamTextImpl: app.locals.aiDependencies?.streamTextImpl || streamText,
     });
     const result = chatRuntime.stream({
       searchEnabled,
