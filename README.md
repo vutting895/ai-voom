@@ -1,34 +1,55 @@
-This is a Slack agent template for [eve](https://beta.eve.dev).
+# AI Voom — VOOM AI Workspace
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-labs%2Feve-slack-agent-template%2Ftree%2Fmain&connect=%5B%7B%22type%22%3A%22slack%22%2C%22env%22%3A%22SLACK_CONNECTOR%22%2C%22triggers%22%3Atrue%2C%22triggerPath%22%3A%22%2Feve%2Fv1%2Fslack%22%7D%5D)
+This repository is the Vercel deployment target for VOOM AI, migrated from `vutting895/voom-ai-f480ij`.
 
+## Runtime layout
+- `public/index.html`: VOOM AI Workspace interface.
+- `server.js`: Express API and Vercel Node.js application entry point.
+- `src/ai/`: optional model gateway and OpenAI-compatible provider adapters.
+- `tests/`: authenticated HTTP, security-boundary, and provider regression tests.
+- Supabase Auth verifies the bearer token on all `/api/*` routes except `/api/public-config`, which exposes only the public Supabase URL and publishable key needed by the browser login flow.
 
-## Getting Started
+## Required Vercel environment variables
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY` (or legacy `SUPABASE_ANON_KEY`)
+- `GEMINI_API_KEY`
+- `VOOM_ADMIN_TOKEN` (server-only; never expose to browser code)
 
-First, link the project and pull environment variables:
+No secret values are committed. The Supabase publishable key is designed for browser use; server-only credentials must never be returned by `/api/public-config`.
 
+## Optional Ollama gateway configuration
+The existing active `/api/chat` route remains Gemini-primary and retains its streaming response and tool execution. The OpenAI-compatible gateway is a separate, non-streaming adapter and is deliberately **not wired into the active chat route** until streaming, tool-call parity, cancellation, and error semantics are implemented and tested.
+
+The gateway is disabled unless `VOOM_MODEL_GATEWAY_ENABLED=true`. Enabling the optional Ollama adapter requires all of:
+- `OLLAMA_BASE_URL`: an HTTPS endpoint; localhost, private IP literals, URL credentials, query strings, and fragments are rejected.
+- `OLLAMA_API_KEY`: server-side authentication credential.
+- `OLLAMA_ALLOWED_HOSTS`: comma-separated exact hostnames; the endpoint hostname must match one entry.
+- `OLLAMA_MODEL`: model identifier (defaults to `qwen3:8b`).
+- `OLLAMA_TIMEOUT_MS`: request timeout from 1,000 to 120,000 ms.
+
+The browser cannot select a provider or supply an endpoint, hostname allowlist, model URL, or credential. Provider requests have message, output, timeout, and redirect bounds. Do not enable this adapter on Vercel until the remote endpoint and its network policy have been independently reviewed.
+
+## Local development
 ```bash
-vercel link
-vercel env pull
+bun install --frozen-lockfile
+cp .env.example .env
+bun run dev
 ```
 
-Then, run the development server:
-
+## Validation
 ```bash
-pnpm dev
+bun run build
+bun run test
 ```
 
-You can start editing the agent by modifying `agent/agent.ts`. Its behavior is defined in `agent/instructions.md`, and tools live in `agent/tools/`. The agent auto-updates as you edit the files.
-
-This project uses the Eve framework's bundled guides — see `node_modules/eve/dist/docs/public/` after installing dependencies.
-
-## Learn More
-
-To learn more about eve, take a look at the following resources:
-
-- [Eve Documentation](https://beta.eve.dev/docs/introduction) - learn about Eve features and API.
-- [Vercel Connect](https://vercel.com/docs) - manages the Slack channel's credentials in this template.
-
-You can check out [the Eve GitHub repository](https://github.com/vercel/eve) - your feedback and contributions are welcome!
-
-<img width="1552" height="1013" alt="Image Edit Request" src="https://github.com/user-attachments/assets/115c947d-1b7d-4464-8d57-91f2dd8758f0" />
+## Migration boundaries and known gaps
+- Source repository remains unchanged; this migration is developed only on `migration/voom-ai-runtime-20261126`.
+- No production database schema/data, Supabase settings, Vercel environment variables, project settings, domains, DNS, or deployment are changed.
+- UI sign-in/sign-up uses the existing Supabase Auth project. Email confirmation behavior depends on the project's current Auth settings.
+- The repository declares the Vercel `express` framework preset in `vercel.json`; the Vercel dashboard settings remain untouched.
+- Chat history and recalled memories remain browser-local; durable tenant memory/RAG is not implemented or claimed by this migration.
+- Chat requests are bounded to the latest 16 messages, 3,000 characters per message, 6,000 characters of recalled context, and at most 10 agent steps.
+- The optional Python Agents SDK runtime is not enabled in Vercel.
+- Voom Guard's rate limiter and security logs remain process-local; they are not distributed, durable production controls.
+- Admin-only security controls continue to require the server-side admin credential. It is not exposed to the browser.
+- No broker, order-execution, or Live Trading capability is included.
