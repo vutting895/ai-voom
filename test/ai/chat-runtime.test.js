@@ -81,3 +81,22 @@ test("Gemini runtime rejects invalid controls before provider invocation", () =>
   );
   assert.equal(called, false);
 });
+
+
+test("Gemini runtime forwards an AbortSignal to the streaming SDK", () => {
+  const controller = new AbortController();
+  let received;
+  const runtime = createGeminiChatRuntime({
+    googleProvider: () => ({}),
+    streamTextImpl: (options) => {
+      received = options.abortSignal;
+      return { fullStream: (async function* () {})() };
+    },
+  });
+
+  runtime.stream({
+    messages: [{ role: "user", content: "hello" }],
+    abortSignal: controller.signal,
+  });
+  assert.equal(received, controller.signal);
+});
