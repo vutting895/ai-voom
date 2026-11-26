@@ -1675,6 +1675,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp
 function sb(){requestAnimationFrame(function(){$('messages').scrollTop=$('messages').scrollHeight})}
 function submit(){
   var t=$('input').value.trim();if(!t||stream)return;
+  if(t.length>3000){toast('ข้อความยาวเกินขีดจำกัด 3,000 ตัวอักษรต่อข้อความ');return;}
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
     resetActiveSpeakerBtn();
@@ -1742,10 +1743,10 @@ function submit(){
   var contextText = ctxList.map(function(m){ return m.t; }).join('\n');
   
   // Convert conversation history
-  var chatHistory = c.msgs.filter(function(m){ return m !== assistantMsg; }).map(function(m){
+  var chatHistory = c.msgs.filter(function(m){ return m !== assistantMsg; }).slice(-16).map(function(m){
     return {
       role: m.role,
-      content: m.c
+      content: String(m.c || '').slice(-3000)
     };
   });
   
