@@ -45,3 +45,19 @@ test("public config bootstrap exposes only browser-safe Supabase configuration",
   assert.doesNotMatch(route[0], /GEMINI_API_KEY|VOOM_ADMIN_TOKEN|SERVICE_ROLE|DATABASE_URL/i);
   assert.ok(server.indexOf("app.get('/api/public-config'") < server.indexOf("app.use('/api', createApiAuthMiddleware"));
 });
+
+test("chat API applies bounded schemas before invoking a model", () => {
+  assert.match(server, /const chatRequestSchema = z\.object/);
+  assert.match(server, /\.max\(16\)/);
+  assert.match(server, /content: z\.string\(\)\.min\(1\)\.max\(3000\)/);
+  assert.match(server, /maxSteps: z\.number\(\)\.int\(\)\.min\(1\)\.max\(10\)/);
+  assert.match(server, /chatRequestSchema\.safeParse\(req\.body\)/);
+  assert.ok(server.indexOf("chatRequestSchema.safeParse(req.body)") < server.indexOf("app.post('/api/chat'") + 120);
+});
+
+test("provider errors are not reflected to API clients", () => {
+  assert.match(server, /error: 'AI_PROVIDER_ERROR'/);
+  assert.match(server, /error: 'AI_PROVIDER_UNAVAILABLE'/);
+  assert.doesNotMatch(server, /res\.write\([^\n]*errorMsg/);
+  assert.doesNotMatch(server, /error: `[^\n]*\$\{errorMsg\}/);
+});
