@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { attachResponseAbortSignal } from "../../src/ai/response-abort.js";
 
 test("Express response lifecycle aborts upstream work after a real client disconnect", async () => {
@@ -29,41 +29,33 @@ test("Express response lifecycle aborts upstream work after a real client discon
   try {
     const address = server.address();
     await new Promise((resolve, reject) => {
-      const request = createServerRequest(address.port, resolve, reject);
+      const request = httpRequest({
+        hostname: "127.0.0.1",
+        port: address.port,
+        path: "/stream",
+        method: "GET",
+      }, response => {
+        response.once("data", () => {
+          request.destroy();
+          resolve();
+        });
+      });
+      request.once("error", error => {
+        if (error.code !== "ECONNRESET") reject(error);
+      });
       request.end();
     });
+
+    let timeout;
     const reason = await Promise.race([
       aborted,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("disconnect was not observed")), 2000))
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("disconnect was not observed")), 2000);
+      })
     ]);
+    clearTimeout(timeout);
     assert.equal(reason?.message, "Client disconnected");
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
 });
-
-function createServerRequest(port, onDisconnect, onError) {
-  const { request } = awaitableHttp();
-  const req = request({
-    hostname: "127.0.0.1",
-    port,
-    path: "/stream",
-    method: "GET",
-  }, response => {
-    response.once("data", () => {
-      req.destroy();
-      onDisconnect();
-    });
-  });
-  req.once("error", error => {
-    if (error.code !== "ECONNRESET") onError(error);
-  });
-  return req;
-}
-
-function awaitableHttp() {
-  // Lazy import is unnecessary here; Node's built-in HTTP client is synchronous to construct.
-  return { request: httpRequest };
-}
-
-import { request as httpRequest } from "node:http";
