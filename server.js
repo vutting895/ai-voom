@@ -413,8 +413,6 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  let disposeResponseAbort = () => {};
-  let responseAbortSignal;
   const parsedRequest = chatRequestSchema.safeParse(req.body);
   if (!parsedRequest.success) {
     return res.status(400).json({
@@ -422,6 +420,9 @@ app.post('/api/chat', async (req, res) => {
       issues: parsedRequest.error.issues.map(({ path, code }) => ({ path, code })),
     });
   }
+
+  let disposeResponseAbort = () => {};
+  let responseAbortSignal;
 
   try {
     const { messages, context, searchEnabled, temperature, persona, customPersonaText, maxSteps, autoMemoryEnabled } = parsedRequest.data;
