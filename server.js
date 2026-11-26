@@ -7,6 +7,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { createGeminiChatRuntime } from './src/ai/chat-runtime.js';
+import { attachResponseAbortSignal } from './src/ai/response-abort.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -410,6 +411,7 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
+  let disposeResponseAbort = () => {};
   const parsedRequest = chatRequestSchema.safeParse(req.body);
   if (!parsedRequest.success) {
     return res.status(400).json({
@@ -571,13 +573,8 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const requestAbortController = new AbortController();
-    const abortOnClientDisconnect = () => {
-      if (!res.writableEnded && !requestAbortController.signal.aborted) {
-        requestAbortController.abort(new Error('Client disconnected'));
-      }
-    };
-    res.once('close', abortOnClientDisconnect);
+    const { signal, dispose } = attachResponseAbortSignal(res);
+    disposeResponseAbort = dispose;
 
     const chatRuntime = createGeminiChatRuntime({
       googleProvider,
@@ -590,7 +587,7 @@ app.post('/api/chat', async (req, res) => {
       system: systemPrompt,
       messages,
       tools: activeTools,
-      abortSignal: requestAbortController.signal,
+      abortSignal: signal,
     });
 
     for await (const chunk of result.fullStream) {
@@ -624,7 +621,9 @@ app.post('/api/chat', async (req, res) => {
     }
 
     res.end();
+    disposeResponseAbort();
   } catch (error) {
+    disposeResponseAbort();
     // Never return provider error details, request metadata, or credentials to the browser.
     console.error('AI provider request failed:', {
       name: error?.name || 'Error',
