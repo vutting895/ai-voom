@@ -37,7 +37,8 @@ test("Gemini runtime preserves streaming model, search grounding, and tool confi
   });
   assert.equal(streamCall.model, model);
   assert.equal(streamCall.temperature, 0.4);
-  assert.equal(streamCall.maxSteps, 4);
+  assert.equal(streamCall.stopWhen({ steps: [{}, {}, {}, {}] }), true);
+  assert.equal(streamCall.stopWhen({ steps: [{}, {}, {}] }), false);
   assert.equal(streamCall.system, "system prompt");
   assert.equal(streamCall.messages, messages);
   assert.equal(streamCall.tools, tools);

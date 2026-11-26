@@ -33,7 +33,7 @@ export function createGeminiChatRuntime({ googleProvider, streamTextImpl }) {
           useSearchGrounding: Boolean(searchEnabled),
         }),
         temperature,
-        maxSteps,
+        stopWhen: ({ steps }) => steps.length >= maxSteps,
         system,
         messages,
         tools,

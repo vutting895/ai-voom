@@ -471,7 +471,7 @@ app.post('/api/chat', async (req, res) => {
     const activeTools = {
       get_current_time: tool({
         description: 'ดึงข้อมูลวันที่และเวลาปัจจุบันของระบบ เพื่อความถูกต้องของวันและเวลาในการช่วยตอบ',
-        parameters: z.object({}),
+        inputSchema: z.object({}),
         execute: async () => {
           const now = new Date();
           return {
@@ -482,7 +482,7 @@ app.post('/api/chat', async (req, res) => {
       }),
       calculate_math: tool({
         description: 'คำนวณสมการคณิตศาสตร์และตัวเลขที่ซับซ้อน',
-        parameters: z.object({
+        inputSchema: z.object({
           expression: z.string().describe('สมการทางคณิตศาสตร์ เช่น (5 * 2) + 10 / 2')
         }),
         execute: async ({ expression }) => {
@@ -498,7 +498,7 @@ app.post('/api/chat', async (req, res) => {
       }),
       wikipedia_summary: tool({
         description: 'ค้นหาและดึงบทสรุปย่อจากสารานุกรม Wikipedia สำหรับหัวข้อที่กำหนด',
-        parameters: z.object({
+        inputSchema: z.object({
           query: z.string().describe('คำที่ต้องการสืบค้นใน Wikipedia เช่น กรุงเทพมหานคร, AI')
         }),
         execute: async ({ query }, options = {}) =>
@@ -506,7 +506,7 @@ app.post('/api/chat', async (req, res) => {
       }),
       call_external_api: tool({
         description: 'ดึงข้อมูลสดหรือผลลัพธ์แบบเรียลไทม์จากระบบ API/Webhook ภายนอกที่กำหนดไว้ (เช่น ราคาคริปโต Bitcoin, มุกตลก, สภาพอากาศ, หรือ URL อื่นๆ ที่ต้องการ)',
-        parameters: z.object({
+        inputSchema: z.object({
           source: z.enum(['crypto', 'joke', 'weather']).describe('แหล่งข้อมูลที่อนุญาต: crypto, joke หรือ weather')
         }),
         execute: async ({ source }, options = {}) =>
@@ -517,7 +517,7 @@ app.post('/api/chat', async (req, res) => {
     if (isAutoMemoryOn) {
       activeTools.add_to_memory = tool({
         description: 'บันทึกข้อมูลสำคัญเกี่ยวกับตัวผู้ใช้หรือเรื่องสำคัญลงในหน่วยความจำส่วนตัวของผู้ใช้ที่จัดเก็บในเบราว์เซอร์',
-        parameters: z.object({
+        inputSchema: z.object({
           text: z.string().describe('ข้อความที่ต้องการบันทึกในความทรงจำ เช่น "ผู้ใช้ชื่อป่าน ชื่นชอบงานดนตรีแจ๊ส"')
         }),
         execute: async ({ text }) => {
@@ -621,7 +621,7 @@ app.get('/api/health-check', async (req, res) => {
     const { text } = await generateText({
       model: googleProvider('gemini-2.5-flash'),
       prompt: 'ping',
-      maxTokens: 1,
+      maxOutputTokens: 1,
     });
 
     return res.json({
