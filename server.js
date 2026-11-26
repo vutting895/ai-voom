@@ -571,6 +571,14 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
+    const requestAbortController = new AbortController();
+    const abortOnClientDisconnect = () => {
+      if (!res.writableEnded && !requestAbortController.signal.aborted) {
+        requestAbortController.abort(new Error('Client disconnected'));
+      }
+    };
+    res.once('close', abortOnClientDisconnect);
+
     const chatRuntime = createGeminiChatRuntime({
       googleProvider,
       streamTextImpl: streamText,
@@ -582,6 +590,7 @@ app.post('/api/chat', async (req, res) => {
       system: systemPrompt,
       messages,
       tools: activeTools,
+      abortSignal: requestAbortController.signal,
     });
 
     for await (const chunk of result.fullStream) {
