@@ -33,7 +33,9 @@ bun run test
 - Source repository remains unchanged; this migration is developed only on `migration/voom-ai-runtime-20261126`.
 - No production database schema/data, Supabase settings, Vercel environment variables, project settings, domains, DNS, or deployment are changed.
 - UI sign-in/sign-up uses the existing Supabase Auth project. Email confirmation behavior depends on the project's current Auth settings.
-- Chat history in the legacy interface remains browser-session scoped; durable tenant memory is not claimed by this migration.
+- The repository now declares the Vercel `express` framework preset in `vercel.json`; the Vercel dashboard settings remain untouched.
+- Chat history and recalled memories remain browser-local; durable tenant memory/RAG is not implemented or claimed by this migration.
+- Chat requests are bounded to the latest 16 messages, 3,000 characters per message, 6,000 characters of recalled context, and at most 10 agent steps.
 - The optional Ollama / Python Agents SDK runtime is not enabled in Vercel. A Vercel function cannot assume a local Ollama process exists.
 - Admin-only security controls continue to require the server-side admin credential. It is not exposed to the browser.
 - No broker, order-execution, or Live Trading capability is included.
