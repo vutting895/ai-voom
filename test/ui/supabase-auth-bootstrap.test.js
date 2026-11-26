@@ -26,3 +26,10 @@ test("browser bootstrap does not contain server credentials", () => {
   assert.doesNotMatch(html, /AIzaSy[A-Za-z0-9_-]{20,}/);
   assert.doesNotMatch(html, /sk-(?:proj|live|test)-[A-Za-z0-9_-]{20,}/);
 });
+
+test("chat UI bounds history and user prompt size before API submission", () => {
+  assert.match(html, /t\.length>3000/);
+  assert.match(html, /slice\(-16\)\.map/);
+  assert.match(html, /slice\(-3000\)/);
+  assert.match(html, /slice\(0, 6000\)/);
+});
