@@ -13,6 +13,21 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
+// Bound untrusted chat input before any model invocation to limit abuse and cost.
+const chatRequestSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().min(1).max(3000),
+  })).min(1).max(16),
+  context: z.string().max(6000).optional().default(''),
+  searchEnabled: z.boolean().optional().default(false),
+  temperature: z.number().min(0.1).max(1.5).optional().default(0.7),
+  persona: z.enum(['default', 'academic', 'coder', 'business', 'custom']).optional().default('default'),
+  customPersonaText: z.string().max(2000).optional().default(''),
+  maxSteps: z.number().int().min(1).max(10).optional().default(5),
+  autoMemoryEnabled: z.boolean().optional().default(true),
+});
+
 // Supabase Auth is the identity authority for every API request.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -394,15 +409,23 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
+  const parsedRequest = chatRequestSchema.safeParse(req.body);
+  if (!parsedRequest.success) {
+    return res.status(400).json({
+      error: 'INVALID_CHAT_REQUEST',
+      issues: parsedRequest.error.issues.map(({ path, code }) => ({ path, code })),
+    });
+  }
+
   try {
-    const { messages, context, searchEnabled, temperature, persona, customPersonaText, maxSteps, autoMemoryEnabled } = req.body;
-    const isAutoMemoryOn = autoMemoryEnabled !== false;
+    const { messages, context, searchEnabled, temperature, persona, customPersonaText, maxSteps, autoMemoryEnabled } = parsedRequest.data;
+    const isAutoMemoryOn = autoMemoryEnabled;
 
     // Check if API Key exists
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
-      return res.status(400).json({
-        error: "ไม่พบ GEMINI_API_KEY กรุณาตั้งค่า API Key ในแถบเครื่องมือ Secrets (Settings > Secrets)"
+      return res.status(503).json({
+        error: 'AI_PROVIDER_NOT_CONFIGURED',
       });
     }
 
@@ -429,7 +452,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const memoryInstruction = isAutoMemoryOn
-      ? `\n   - add_to_memory: สำหรับ "บันทึกความจำอัตโนมัติ" ลงสู่ระบบ RAG ของผู้ใช้ทันทีเมื่อตรวจพบว่าผู้ใช้กำลังแนะนำข้อมูลสำคัญ เช่น ชื่อ, อายุ, ความชอบ, งานอดิเรก หรือประวัติส่วนตัว`
+      ? `\n   - add_to_memory: สำหรับ "บันทึกความจำอัตโนมัติ" ลงในหน่วยความจำส่วนตัวของผู้ใช้ที่จัดเก็บในเบราว์เซอร์เมื่อตรวจพบว่าผู้ใช้กำลังแนะนำข้อมูลสำคัญ เช่น ชื่อ, อายุ, ความชอบ, งานอดิเรก หรือประวัติส่วนตัว`
       : '';
 
     const systemPrompt = `${systemPromptBase}\n\nคำแนะนำการตอบคำถาม:\n1. ใช้ภาษาไทยเป็นหลัก ให้คำตอบที่ชัดเจนและนำไปใช้จริงได้ทันที\n2. หากผู้ใช้ถามคำถามเกี่ยวกับ เวลา, การคำนวณตัวเลข, ความรู้ประวัติศาสตร์ หรือข้อมูลสด ให้ใช้เครื่องมือตามความเหมาะสมเสมอ\n3. คำแนะนำการใช้เครื่องมือ:\n   - get_current_time: สำหรับดึงเวลาปัจจุบันในประเทศไทย\n   - calculate_math: สำหรับการคิดคำนวณตัวเลขทางคณิตศาสตร์\n   - wikipedia_summary: สำหรับค้นหาข้อมูลสารานุกรมจาก Wikipedia${memoryInstruction}\n   - call_external_api: สำหรับดึงข้อมูลสดเรียลไทม์ (ราคาคริปโต, มุกตลก, สภาพอากาศ, หรือ Custom API Endpoint)\n4. จัดรูปแบบข้อความด้วย Markdown ที่สวยงาม อ่านง่าย\n5. หากระบบมีการเรียกใช้ข้อมูลจากอินเทอร์เน็ต (Google Search Grounding) กรุณาสรุปข้อมูลให้ครบถ้วน น่าเชื่อถือ\n\n=== ข้อมูลความจำที่ดึงมาเชื่อมโยง ===\n${context || 'ไม่มีข้อมูลความจำที่เกี่ยวข้องโดยตรงในตอนนี้'}\n=== สิ้นสุดข้อมูลความจำ ===`;
@@ -532,7 +555,7 @@ app.post('/api/chat', async (req, res) => {
 
     if (isAutoMemoryOn) {
       activeTools.add_to_memory = tool({
-        description: 'บันทึกข้อมูลสำคัญเกี่ยวกับตัวผู้ใช้หรือเรื่องสำคัญลงในระบบความจำอัตโนมัติ (RAG Memory) ของระบบ',
+        description: 'บันทึกข้อมูลสำคัญเกี่ยวกับตัวผู้ใช้หรือเรื่องสำคัญลงในหน่วยความจำส่วนตัวของผู้ใช้ที่จัดเก็บในเบราว์เซอร์',
         parameters: z.object({
           text: z.string().describe('ข้อความที่ต้องการบันทึกในความทรงจำ เช่น "ผู้ใช้ชื่อป่าน ชื่นชอบงานดนตรีแจ๊ส"')
         }),
@@ -590,16 +613,20 @@ app.post('/api/chat', async (req, res) => {
 
     res.end();
   } catch (error) {
-    console.error('API Error:', error);
-    let errorMsg = (error && error.message) ? error.message : String(error);
-    if (errorMsg.includes('invalid authentication credentials') || errorMsg.includes('UNAUTHENTICATED') || errorMsg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED')) {
-      errorMsg = 'รหัส GEMINI_API_KEY ไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน กรุณาตั้งค่า API Key ใหม่ใน Settings > Secrets (ควรเป็น API Key จาก Google AI Studio ที่เริ่มต้นด้วย AIzaSy...)';
+    // Never return provider error details, request metadata, or credentials to the browser.
+    console.error('AI provider request failed:', {
+      name: error?.name || 'Error',
+      statusCode: Number.isInteger(error?.statusCode) ? error.statusCode : undefined,
+      code: typeof error?.code === 'string' ? error.code.slice(0, 64) : undefined,
+    });
+    if (res.headersSent) {
+      res.destroy();
+      return;
     }
-    if (!res.headersSent) {
-      res.status(400);
-    }
-    res.write(`\n\n⚠️ เกิดข้อผิดพลาดในการเรียกใช้งาน AI: ${errorMsg}`);
-    res.end();
+    return res.status(502).json({
+      error: 'AI_PROVIDER_ERROR',
+      message: 'ไม่สามารถประมวลผลคำขอ AI ได้ในขณะนี้',
+    });
   }
 });
 
@@ -608,9 +635,9 @@ app.get('/api/health-check', async (req, res) => {
   try {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
-      return res.json({
+      return res.status(503).json({
         ok: false,
-        error: "ไม่พบ GEMINI_API_KEY ในระบบ กรุณาใส่ API Key ของคุณในแท็บ Settings > Secrets"
+        error: 'AI_PROVIDER_NOT_CONFIGURED',
       });
     }
 
@@ -629,14 +656,14 @@ app.get('/api/health-check', async (req, res) => {
       testResponse: text
     });
   } catch (error) {
-    console.error('Health check test failure:', error.message || error);
-    let errorMsg = error.message || String(error);
-    if (errorMsg.includes('invalid authentication credentials') || errorMsg.includes('UNAUTHENTICATED') || errorMsg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED')) {
-      errorMsg = 'รหัส GEMINI_API_KEY ในระบบไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน กรุณาตั้งค่า API Key ใหม่ใน Settings > Secrets (เริ่มต้นด้วย AIzaSy...)';
-    }
-    return res.json({
+    console.error('AI provider health check failed:', {
+      name: error?.name || 'Error',
+      statusCode: Number.isInteger(error?.statusCode) ? error.statusCode : undefined,
+      code: typeof error?.code === 'string' ? error.code.slice(0, 64) : undefined,
+    });
+    return res.status(503).json({
       ok: false,
-      error: `เชื่อมต่อกับ Gemini API ล้มเหลว: ${errorMsg}`
+      error: 'AI_PROVIDER_UNAVAILABLE',
     });
   }
 });
